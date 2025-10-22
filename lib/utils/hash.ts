@@ -2,8 +2,11 @@ import crypto from "crypto"
 
 import { BLOCKCHAIN_SECRET, VERIFICATION_SECRET } from "@/lib/config"
 
-export function computeVerificationHash(code: string): string {
-  return crypto.createHash("sha256").update(`${code}${VERIFICATION_SECRET}`).digest("hex")
+export function computeVerificationHash(
+  code: string,
+  secret: string = VERIFICATION_SECRET,
+): string {
+  return crypto.createHash("sha256").update(`${code}${secret}`).digest("hex")
 }
 
 export function computeBlockchainAnchorHash(reference: string): string {
