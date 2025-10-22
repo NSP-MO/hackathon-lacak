@@ -112,12 +112,12 @@ function ensureGenesis(state: BlockchainState) {
   state.chain.push(mineBlock(baseBlock))
 }
 
-function anchorPendingBefore(state: BlockchainState, cutoffDate: string) {
+function anchorPendingUpTo(state: BlockchainState, cutoffDate: string) {
   ensureGenesis(state)
   const dates = Object.keys(state.pendingAnchors).sort()
 
   for (const date of dates) {
-    if (date >= cutoffDate) {
+    if (date > cutoffDate) {
       continue
     }
 
@@ -164,7 +164,7 @@ export async function recordVerificationEvent(event: RecordEventInput) {
 
     state.pendingAnchors[eventDate].push(event)
 
-    anchorPendingBefore(state, eventDate)
+    anchorPendingUpTo(state, eventDate)
 
     return state
   })
@@ -172,7 +172,7 @@ export async function recordVerificationEvent(event: RecordEventInput) {
 
 async function flushAnchorsUpTo(date: string): Promise<BlockchainState> {
   return mutateStore(STORE_FILE, defaultState, (state) => {
-    anchorPendingBefore(state, date)
+    anchorPendingUpTo(state, date)
     return state
   })
 }

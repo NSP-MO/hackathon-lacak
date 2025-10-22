@@ -49,13 +49,17 @@ export async function verifyProductCode(
   const lookup = await findCodeByVerificationHash(verificationHash)
 
   if (!lookup) {
-    await appendAuditLog({
-      id: randomUUID(),
-      timestamp,
-      code: normalized,
-      status: "TIDAK_TERVERIFIKASI",
-      ipHash,
-    })
+    try {
+      await appendAuditLog({
+        id: randomUUID(),
+        timestamp,
+        code: normalized,
+        status: "TIDAK_TERVERIFIKASI",
+        ipHash,
+      })
+    } catch (error) {
+      console.error("Failed to append audit log for invalid verification:", error)
+    }
 
     return {
       status: "TIDAK_TERVERIFIKASI",
@@ -76,29 +80,53 @@ export async function verifyProductCode(
     throw new Error("Gagal memperbarui status verifikasi produk")
   }
 
-  await appendAuditLog({
-    id: randomUUID(),
-    timestamp,
-    code: normalized,
-    status: updateResult.status,
-    ipHash,
-    productId: updateResult.batch.id,
-    productName: updateResult.batch.productName,
-    distributor: updateResult.batch.distributor,
-    codeId: updateResult.code.id,
-  })
+  try {
+    await appendAuditLog({
+      id: randomUUID(),
+      timestamp,
+      code: normalized,
+      status: updateResult.status,
+      ipHash,
+      productId: updateResult.batch.id,
+      productName: updateResult.batch.productName,
+      distributor: updateResult.batch.distributor,
+      codeId: updateResult.code.id,
+    })
+  } catch (error) {
+    console.error("Failed to append audit log for valid verification:", error)
+  }
 
-  await recordVerificationEvent({
-    productId: updateResult.batch.id,
-    productName: updateResult.batch.productName,
-    distributor: updateResult.batch.distributor,
-    codeId: updateResult.code.id,
-    anchorHash: updateResult.code.blockchainAnchorHash,
-    status: updateResult.status,
-    timestamp,
-  })
+  let blockchainProof: BlockchainProof | null = null
 
-  const proof = await getBlockchainProofForCode(updateResult.code.id, timestamp)
+  if (!updateResult.code.blockchainAnchorHash) {
+    console.warn(
+      "Missing blockchain anchor hash for code",
+      updateResult.code.id,
+    )
+  } else {
+    try {
+      await recordVerificationEvent({
+        productId: updateResult.batch.id,
+        productName: updateResult.batch.productName,
+        distributor: updateResult.batch.distributor,
+        codeId: updateResult.code.id,
+        anchorHash: updateResult.code.blockchainAnchorHash,
+        status: updateResult.status,
+        timestamp,
+      })
+    } catch (error) {
+      console.error("Failed to record blockchain verification event:", error)
+    }
+
+    try {
+      blockchainProof = await getBlockchainProofForCode(
+        updateResult.code.id,
+        timestamp,
+      )
+    } catch (error) {
+      console.error("Failed to load blockchain proof:", error)
+    }
+  }
 
   const message =
     updateResult.status === "TERVERIFIKASI"
@@ -120,6 +148,6 @@ export async function verifyProductCode(
       timestamp: entry.timestamp,
       status: entry.status,
     })),
-    blockchainProof: proof,
+    blockchainProof,
   }
 }
