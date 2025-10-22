@@ -1,7 +1,7 @@
 import crypto from "crypto"
 
 import { BLOCKCHAIN_DIFFICULTY } from "@/lib/config"
-import { mutateStore } from "@/lib/utils/file-storage"
+import { mutateStore } from "@/lib/utils/in-memory-store"
 
 export type BlockchainVerificationStatus = "TERVERIFIKASI" | "PERNAH_TERVERIFIKASI"
 

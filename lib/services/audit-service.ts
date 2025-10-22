@@ -1,5 +1,5 @@
 import { AUDIT_LOG_LIMIT } from "@/lib/config"
-import { mutateStore, readStore } from "@/lib/utils/file-storage"
+import { mutateStore, readStore } from "@/lib/utils/in-memory-store"
 
 export type AuditStatus = "TERVERIFIKASI" | "PERNAH_TERVERIFIKASI" | "TIDAK_TERVERIFIKASI"
 
