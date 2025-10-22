@@ -156,7 +156,7 @@ export default function AdminPage() {
               <>
                 <Card className="bg-slate-900 border-slate-700 p-6">
                   <h2 className="text-xl font-bold text-white mb-4">Daily Merkle Root Anchoring</h2>
-                  <div className="grid md:grid-cols-3 gap-6">
+                  <div className="grid md:grid-cols-2 gap-6">
                     <div>
                       <p className="text-slate-400 text-sm mb-1">Last Anchor Date</p>
                       <p className="text-2xl font-bold text-orange-500">{blockchainData.lastAnchorDate}</p>
@@ -164,10 +164,6 @@ export default function AdminPage() {
                     <div>
                       <p className="text-slate-400 text-sm mb-1">Total Activations Anchored</p>
                       <p className="text-2xl font-bold text-green-500">{blockchainData.totalActivations}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 text-sm mb-1">Pending (Today)</p>
-                      <p className="text-2xl font-bold text-amber-500">{blockchainData.pendingToday ?? 0}</p>
                     </div>
                   </div>
                 </Card>

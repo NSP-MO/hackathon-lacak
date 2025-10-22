@@ -1,54 +1,56 @@
 import { type NextRequest, NextResponse } from "next/server"
+import crypto from "crypto"
 
-import {
-  createProductBatch,
-  listProductSummaries,
-} from "@/lib/services/product-service"
+// In-memory database
+const adminProducts: Map<string, any> = new Map()
+let productCounter = 0
 
 export async function GET() {
-  const products = await listProductSummaries()
+  const products = Array.from(adminProducts.values()).map((p) => ({
+    id: p.id,
+    productName: p.productName,
+    distributor: p.distributor,
+    totalCodes: p.codes.length,
+    verifiedCount: p.codes.filter((c: any) => c.spent).length,
+    createdAt: p.createdAt,
+  }))
+
   return NextResponse.json(products)
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { productName, distributor } = body ?? {}
-    const quantity = Number(body?.quantity ?? 0)
+    const { productName, distributor, quantity } = await request.json()
 
-    if (!productName || typeof productName !== "string") {
-      return NextResponse.json({ message: "Nama produk wajib diisi" }, { status: 400 })
+    const productId = `PROD-${String(++productCounter).padStart(4, "0")}`
+    const codes = []
+
+    // Generate unique codes
+    for (let i = 0; i < quantity; i++) {
+      const code = crypto.randomBytes(8).toString("hex").toUpperCase()
+      codes.push({
+        code,
+        hash: crypto.createHash("sha256").update(code).digest("hex"),
+        spent: false,
+      })
     }
 
-    if (!distributor || typeof distributor !== "string") {
-      return NextResponse.json({ message: "Distributor wajib diisi" }, { status: 400 })
-    }
-
-    if (!Number.isInteger(quantity) || quantity <= 0 || quantity > 10000) {
-      return NextResponse.json(
-        { message: "Jumlah kode harus berupa bilangan bulat antara 1-10000" },
-        { status: 400 },
-      )
-    }
-
-    const batch = await createProductBatch({ productName, distributor, quantity })
+    adminProducts.set(productId, {
+      id: productId,
+      productName,
+      distributor,
+      codes,
+      createdAt: new Date().toISOString(),
+    })
 
     return NextResponse.json({
-      id: batch.id,
-      productName: batch.productName,
-      distributor: batch.distributor,
-      createdAt: batch.createdAt,
-      totalCodes: batch.codes.length,
-      verifiedCount: batch.codes.filter((code) => code.status !== "UNUSED").length,
-      codes: batch.codes.map((code) => ({
-        codeId: code.id,
-        labelHash: code.labelHash,
-        blockchainAnchorHash: code.blockchainAnchorHash,
-        verificationHash: code.verificationHash,
-      })),
+      id: productId,
+      productName,
+      distributor,
+      totalCodes: quantity,
     })
   } catch (error) {
     console.error("Error creating product:", error)
-    return NextResponse.json({ message: "Gagal membuat batch produk" }, { status: 500 })
+    return NextResponse.json({ message: "Failed to create product" }, { status: 500 })
   }
 }
