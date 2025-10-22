@@ -340,7 +340,14 @@ export default function AdminPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Smart Contract:</span>
-                      <span className="text-white font-mono text-sm">{blockchainData.contractAddress}</span>
+                      <Link
+                        href={`https://sepolia.etherscan.io/address/${blockchainData.contractAddress}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-white font-mono text-sm hover:text-orange-400"
+                      >
+                        {blockchainData.contractAddress}
+                      </Link>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Status:</span>
