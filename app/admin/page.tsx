@@ -1,65 +1,198 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Shield, Plus, Search } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { useEffect, useState } from "react"
 import Link from "next/link"
+import { Shield, Plus, Search } from "lucide-react"
+
+import AdminAuditLog from "@/components/admin-audit-log"
+import AdminProductCodes, { type ProductDetail } from "@/components/admin-product-codes"
 import AdminProductForm from "@/components/admin-product-form"
 import AdminProductList from "@/components/admin-product-list"
-import AdminAuditLog from "@/components/admin-audit-log"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 
 type AdminTab = "products" | "audit" | "blockchain"
+
+interface ProductSummary {
+  id: string
+  productName: string
+  distributor: string
+  totalCodes: number
+  verifiedCount: number
+  createdAt: string
+}
 
 export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>("products")
   const [showForm, setShowForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [products, setProducts] = useState<any[]>([])
+  const [products, setProducts] = useState<ProductSummary[]>([])
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [blockchainData, setBlockchainData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
+  const [selectedProductDetail, setSelectedProductDetail] = useState<ProductDetail | null>(null)
+  const [selectedProductLoading, setSelectedProductLoading] = useState(false)
+  const [selectedProductError, setSelectedProductError] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadData()
-  }, [tab])
+  const clearSelectedProduct = () => {
+    setSelectedProductId(null)
+    setSelectedProductDetail(null)
+    setSelectedProductError(null)
+  }
+
+  const fetchProductDetail = async (productId: string, keepSelection = false) => {
+    if (!keepSelection) {
+      setSelectedProductDetail(null)
+      setSelectedProductId(productId)
+    }
+    setSelectedProductError(null)
+    setSelectedProductLoading(true)
+
+    try {
+      const response = await fetch(`/api/admin/products/${productId}`)
+      let payload: any = null
+      try {
+        payload = await response.json()
+      } catch {
+        payload = null
+      }
+
+      if (!response.ok) {
+        const error = new Error(payload?.message ?? "Gagal memuat detail produk") as Error & {
+          status?: number
+        }
+        error.status = response.status
+        throw error
+      }
+
+      setSelectedProductDetail(payload as ProductDetail)
+      setSelectedProductId(productId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Gagal memuat detail produk"
+      setSelectedProductError(message)
+
+      if ((error as { status?: number } | undefined)?.status === 404) {
+        clearSelectedProduct()
+      } else if (!keepSelection) {
+        setSelectedProductDetail(null)
+      }
+    } finally {
+      setSelectedProductLoading(false)
+    }
+  }
 
   const loadData = async () => {
     setLoading(true)
     try {
       if (tab === "products") {
         const response = await fetch("/api/admin/products")
-        const data = await response.json()
-        setProducts(data)
+        let payload: any = null
+        try {
+          payload = await response.json()
+        } catch {
+          payload = []
+        }
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "Gagal memuat daftar produk")
+        }
+
+        setProducts(Array.isArray(payload) ? payload : [])
+
+        if (selectedProductId) {
+          await fetchProductDetail(selectedProductId, true)
+        }
       } else if (tab === "audit") {
         const response = await fetch("/api/admin/audit-logs")
-        const data = await response.json()
-        setAuditLogs(data)
+        let payload: any = null
+        try {
+          payload = await response.json()
+        } catch {
+          payload = []
+        }
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "Gagal memuat log audit")
+        }
+
+        setAuditLogs(Array.isArray(payload) ? payload : [])
       } else if (tab === "blockchain") {
         const response = await fetch("/api/admin/blockchain-status")
-        const data = await response.json()
-        setBlockchainData(data)
+        let payload: any = null
+        try {
+          payload = await response.json()
+        } catch {
+          payload = null
+        }
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "Gagal memuat status blockchain")
+        }
+
+        setBlockchainData(payload)
       }
     } catch (error) {
       console.error("Error loading data:", error)
+
+      if (tab === "products") {
+        setProducts([])
+      } else if (tab === "audit") {
+        setAuditLogs([])
+      } else if (tab === "blockchain") {
+        setBlockchainData(null)
+      }
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
-  const handleProductAdded = () => {
+  useEffect(() => {
+    if (tab !== "products") {
+      clearSelectedProduct()
+    }
+
+    void loadData()
+  }, [tab])
+
+  const handleProductAdded = async (productId: string) => {
     setShowForm(false)
-    loadData()
+    await loadData()
+
+    if (productId) {
+      await fetchProductDetail(productId)
+    }
   }
 
   const handleDeleteProduct = async (productId: string) => {
     if (!confirm("Are you sure you want to delete this product?")) return
 
     try {
-      await fetch(`/api/admin/products/${productId}`, { method: "DELETE" })
-      loadData()
+      const response = await fetch(`/api/admin/products/${productId}`, { method: "DELETE" })
+      let payload: any = null
+      try {
+        payload = await response.json()
+      } catch {
+        payload = null
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "Gagal menghapus produk")
+      }
+
+      if (selectedProductId === productId) {
+        clearSelectedProduct()
+      }
+
+      await loadData()
     } catch (error) {
       console.error("Error deleting product:", error)
+      setSelectedProductError(error instanceof Error ? error.message : "Gagal menghapus produk")
     }
+  }
+
+  const handleViewProduct = (productId: string) => {
+    void fetchProductDetail(productId)
   }
 
   return (
@@ -141,8 +274,27 @@ export default function AdminPage() {
               products={products}
               searchQuery={searchQuery}
               onDelete={handleDeleteProduct}
+              onView={handleViewProduct}
               loading={loading}
+              selectedProductId={selectedProductId}
+              detailLoadingProductId={selectedProductLoading ? selectedProductId : null}
             />
+
+            {selectedProductLoading && (
+              <Card className="bg-slate-900 border-slate-700 p-6 text-center text-slate-300">
+                Memuat detail kode produk...
+              </Card>
+            )}
+
+            {selectedProductError && (
+              <Card className="bg-red-500/10 border-red-500/40 p-4 text-sm text-red-200">
+                {selectedProductError}
+              </Card>
+            )}
+
+            {selectedProductDetail && (
+              <AdminProductCodes product={selectedProductDetail} onClose={clearSelectedProduct} />
+            )}
           </div>
         )}
 
@@ -156,7 +308,7 @@ export default function AdminPage() {
               <>
                 <Card className="bg-slate-900 border-slate-700 p-6">
                   <h2 className="text-xl font-bold text-white mb-4">Daily Merkle Root Anchoring</h2>
-                  <div className="grid md:grid-cols-2 gap-6">
+                  <div className="grid md:grid-cols-3 gap-6">
                     <div>
                       <p className="text-slate-400 text-sm mb-1">Last Anchor Date</p>
                       <p className="text-2xl font-bold text-orange-500">{blockchainData.lastAnchorDate}</p>
@@ -164,6 +316,10 @@ export default function AdminPage() {
                     <div>
                       <p className="text-slate-400 text-sm mb-1">Total Activations Anchored</p>
                       <p className="text-2xl font-bold text-green-500">{blockchainData.totalActivations}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400 text-sm mb-1">Pending (Today)</p>
+                      <p className="text-2xl font-bold text-amber-500">{blockchainData.pendingToday ?? 0}</p>
                     </div>
                   </div>
                 </Card>
@@ -193,6 +349,12 @@ export default function AdminPage() {
                   </div>
                 </Card>
               </>
+            )}
+
+            {!blockchainData && !loading && (
+              <Card className="bg-slate-900 border-slate-700 p-6 text-center text-slate-300">
+                Tidak ada data blockchain yang tersedia.
+              </Card>
             )}
           </div>
         )}

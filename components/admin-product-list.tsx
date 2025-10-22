@@ -17,10 +17,21 @@ interface AdminProductListProps {
   products: Product[]
   searchQuery: string
   onDelete: (id: string) => void
+  onView: (id: string) => void
   loading: boolean
+  selectedProductId?: string | null
+  detailLoadingProductId?: string | null
 }
 
-export default function AdminProductList({ products, searchQuery, onDelete, loading }: AdminProductListProps) {
+export default function AdminProductList({
+  products,
+  searchQuery,
+  onDelete,
+  onView,
+  loading,
+  selectedProductId,
+  detailLoadingProductId,
+}: AdminProductListProps) {
   const filteredProducts = products.filter(
     (p) =>
       p.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -46,7 +57,12 @@ export default function AdminProductList({ products, searchQuery, onDelete, load
   return (
     <div className="space-y-4">
       {filteredProducts.map((product) => (
-        <Card key={product.id} className="bg-slate-900 border-slate-700 p-6">
+        <Card
+          key={product.id}
+          className={`bg-slate-900 p-6 border ${
+            selectedProductId === product.id ? "border-orange-500/60 shadow-lg shadow-orange-500/20" : "border-slate-700"
+          }`}
+        >
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-white mb-2">{product.productName}</h3>
@@ -62,7 +78,11 @@ export default function AdminProductList({ products, searchQuery, onDelete, load
                 <div>
                   <p className="text-slate-400">Verified</p>
                   <p className="text-green-500 font-medium">
-                    {product.verifiedCount} ({Math.round((product.verifiedCount / product.totalCodes) * 100)}%)
+                    {product.verifiedCount} (
+                    {product.totalCodes === 0
+                      ? 0
+                      : Math.round((product.verifiedCount / product.totalCodes) * 100)}
+                    %)
                   </p>
                 </div>
               </div>
@@ -71,9 +91,12 @@ export default function AdminProductList({ products, searchQuery, onDelete, load
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => onView(product.id)}
+                disabled={detailLoadingProductId === product.id}
                 className="border-slate-600 text-slate-300 hover:bg-slate-800 bg-transparent"
               >
                 <Eye className="w-4 h-4" />
+                <span className="sr-only">Lihat detail kode</span>
               </Button>
               <Button
                 variant="outline"
@@ -82,6 +105,7 @@ export default function AdminProductList({ products, searchQuery, onDelete, load
                 className="border-red-500/30 text-red-400 hover:bg-red-500/10"
               >
                 <Trash2 className="w-4 h-4" />
+                <span className="sr-only">Hapus produk</span>
               </Button>
             </div>
           </div>

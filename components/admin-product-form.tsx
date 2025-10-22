@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
 
 interface AdminProductFormProps {
-  onProductAdded: () => void
+  onProductAdded: (productId: string) => void | Promise<void>
 }
 
 export default function AdminProductForm({ onProductAdded }: AdminProductFormProps) {
@@ -18,10 +18,12 @@ export default function AdminProductForm({ onProductAdded }: AdminProductFormPro
     distributor: "",
     quantity: "1",
   })
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setErrorMessage(null)
 
     try {
       const response = await fetch("/api/admin/products", {
@@ -33,12 +35,26 @@ export default function AdminProductForm({ onProductAdded }: AdminProductFormPro
         }),
       })
 
-      if (response.ok) {
-        setFormData({ productName: "", distributor: "", quantity: "1" })
-        onProductAdded()
+      let payload: any = null
+      try {
+        payload = await response.json()
+      } catch {
+        payload = null
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "Gagal membuat batch produk")
+      }
+
+      setFormData({ productName: "", distributor: "", quantity: "1" })
+      if (payload?.id) {
+        await onProductAdded(payload.id as string)
+      } else {
+        await onProductAdded("")
       }
     } catch (error) {
       console.error("Error adding product:", error)
+      setErrorMessage(error instanceof Error ? error.message : "Gagal membuat batch produk")
     }
     setLoading(false)
   }
@@ -83,6 +99,12 @@ export default function AdminProductForm({ onProductAdded }: AdminProductFormPro
             className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
           />
         </div>
+
+        {errorMessage && (
+          <div className="text-sm text-red-200 bg-red-500/10 border border-red-500/40 rounded-md px-4 py-2">
+            {errorMessage}
+          </div>
+        )}
 
         <Button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600 text-white">
           {loading ? (
