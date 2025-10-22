@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Trash2, Eye } from "lucide-react"
+import Link from "next/link"
 
 interface Product {
   id: string
@@ -27,7 +28,6 @@ export default function AdminProductList({
   products,
   searchQuery,
   onDelete,
-  onView,
   loading,
   selectedProductId,
   detailLoadingProductId,
@@ -60,7 +60,9 @@ export default function AdminProductList({
         <Card
           key={product.id}
           className={`bg-slate-900 p-6 border ${
-            selectedProductId === product.id ? "border-orange-500/60 shadow-lg shadow-orange-500/20" : "border-slate-700"
+            selectedProductId === product.id
+              ? "border-orange-500/60 shadow-lg shadow-orange-500/20"
+              : "border-slate-700"
           }`}
         >
           <div className="flex items-center justify-between">
@@ -79,25 +81,24 @@ export default function AdminProductList({
                   <p className="text-slate-400">Verified</p>
                   <p className="text-green-500 font-medium">
                     {product.verifiedCount} (
-                    {product.totalCodes === 0
-                      ? 0
-                      : Math.round((product.verifiedCount / product.totalCodes) * 100)}
+                    {product.totalCodes === 0 ? 0 : Math.round((product.verifiedCount / product.totalCodes) * 100)}
                     %)
                   </p>
                 </div>
               </div>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onView(product.id)}
-                disabled={detailLoadingProductId === product.id}
-                className="border-slate-600 text-slate-300 hover:bg-slate-800 bg-transparent"
-              >
-                <Eye className="w-4 h-4" />
-                <span className="sr-only">Lihat detail kode</span>
-              </Button>
+              <Link href={`/admin/batch/${product.id}`}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={detailLoadingProductId === product.id}
+                  className="border-slate-600 text-slate-300 hover:bg-slate-800 bg-transparent"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span className="sr-only">Lihat detail kode</span>
+                </Button>
+              </Link>
               <Button
                 variant="outline"
                 size="sm"

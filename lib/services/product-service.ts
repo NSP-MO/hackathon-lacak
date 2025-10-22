@@ -1,9 +1,5 @@
 import { mutateStore, readStore } from "@/lib/utils/file-storage"
-import {
-  computeBlockchainAnchorHash,
-  computeVerificationHash,
-  generateRandomHexCode,
-} from "@/lib/utils/hash"
+import { computeBlockchainAnchorHash, computeVerificationHash, generateRandomHexCode } from "@/lib/utils/hash"
 
 export type VerificationState = "UNUSED" | "TERVERIFIKASI" | "PERNAH_TERVERIFIKASI"
 
