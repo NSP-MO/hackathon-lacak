@@ -62,7 +62,11 @@ export default function AdminProductList({ products, searchQuery, onDelete, load
                 <div>
                   <p className="text-slate-400">Verified</p>
                   <p className="text-green-500 font-medium">
-                    {product.verifiedCount} ({Math.round((product.verifiedCount / product.totalCodes) * 100)}%)
+                    {product.verifiedCount} (
+                    {product.totalCodes === 0
+                      ? 0
+                      : Math.round((product.verifiedCount / product.totalCodes) * 100)}
+                    %)
                   </p>
                 </div>
               </div>
