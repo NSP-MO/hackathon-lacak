@@ -43,9 +43,7 @@ function computeMerkleRoot(events: BlockchainEvent[]): string {
     return crypto.createHash("sha256").update("GENESIS").digest("hex")
   }
 
-  let hashes = events.map((event) =>
-    crypto.createHash("sha256").update(JSON.stringify(event)).digest("hex"),
-  )
+  let hashes = events.map((event) => crypto.createHash("sha256").update(JSON.stringify(event)).digest("hex"))
 
   while (hashes.length > 1) {
     const next: string[] = []
@@ -53,7 +51,12 @@ function computeMerkleRoot(events: BlockchainEvent[]): string {
     for (let i = 0; i < hashes.length; i += 2) {
       const left = hashes[i]
       const right = hashes[i + 1] ?? hashes[i]
-      next.push(crypto.createHash("sha256").update(left + right).digest("hex"))
+      next.push(
+        crypto
+          .createHash("sha256")
+          .update(left + right)
+          .digest("hex"),
+      )
     }
 
     hashes = next
@@ -72,9 +75,7 @@ function computeBlockHash(block: {
 }): string {
   return crypto
     .createHash("sha256")
-    .update(
-      `${block.index}|${block.previousHash}|${block.timestamp}|${block.merkleRoot}|${block.nonce}|${block.date}`,
-    )
+    .update(`${block.index}|${block.previousHash}|${block.timestamp}|${block.merkleRoot}|${block.nonce}|${block.date}`)
     .digest("hex")
 }
 
@@ -154,20 +155,27 @@ export interface RecordEventInput {
 }
 
 export async function recordVerificationEvent(event: RecordEventInput) {
-  await mutateStore(STORE_FILE, defaultState, (state) => {
-    ensureGenesis(state)
+  try {
+    console.log("[v0] Recording verification event:", event.codeId)
+    await mutateStore(STORE_FILE, defaultState, (state) => {
+      ensureGenesis(state)
 
-    const eventDate = event.timestamp.slice(0, 10)
-    if (!state.pendingAnchors[eventDate]) {
-      state.pendingAnchors[eventDate] = []
-    }
+      const eventDate = event.timestamp.slice(0, 10)
+      if (!state.pendingAnchors[eventDate]) {
+        state.pendingAnchors[eventDate] = []
+      }
 
-    state.pendingAnchors[eventDate].push(event)
+      state.pendingAnchors[eventDate].push(event)
 
-    anchorPendingUpTo(state, eventDate)
+      anchorPendingUpTo(state, eventDate)
 
-    return state
-  })
+      return state
+    })
+    console.log("[v0] Verification event recorded successfully")
+  } catch (error) {
+    console.error("[v0] Error recording verification event:", error)
+    throw error
+  }
 }
 
 async function flushAnchorsUpTo(date: string): Promise<BlockchainState> {
@@ -181,10 +189,7 @@ function cloneState(state: BlockchainState): BlockchainState {
   return {
     chain: state.chain.map((block) => ({ ...block, events: block.events.map((event) => ({ ...event })) })),
     pendingAnchors: Object.fromEntries(
-      Object.entries(state.pendingAnchors).map(([key, value]) => [
-        key,
-        value.map((event) => ({ ...event })),
-      ]),
+      Object.entries(state.pendingAnchors).map(([key, value]) => [key, value.map((event) => ({ ...event }))]),
     ),
   }
 }
@@ -201,50 +206,56 @@ export interface BlockchainProof {
   pendingCount?: number
 }
 
-export async function getBlockchainProofForCode(
-  codeId: string,
-  timestamp?: string,
-): Promise<BlockchainProof | null> {
-  const today = new Date().toISOString().slice(0, 10)
-  const state = await flushAnchorsUpTo(today)
-  const snapshot = cloneState(state)
+export async function getBlockchainProofForCode(codeId: string, timestamp?: string): Promise<BlockchainProof | null> {
+  try {
+    console.log("[v0] Getting blockchain proof for code:", codeId)
+    const today = new Date().toISOString().slice(0, 10)
+    const state = await flushAnchorsUpTo(today)
+    const snapshot = cloneState(state)
 
-  for (let i = snapshot.chain.length - 1; i >= 0; i--) {
-    const block = snapshot.chain[i]
-    for (const event of block.events) {
-      if (event.codeId === codeId && (!timestamp || event.timestamp === timestamp)) {
-        return {
-          anchorHash: event.anchorHash,
-          anchorDate: block.date,
-          status: event.status,
-          anchored: true,
-          blockHash: block.hash,
-          blockIndex: block.index,
-          blockTimestamp: block.timestamp,
-          merkleRoot: block.merkleRoot,
+    for (let i = snapshot.chain.length - 1; i >= 0; i--) {
+      const block = snapshot.chain[i]
+      for (const event of block.events) {
+        if (event.codeId === codeId && (!timestamp || event.timestamp === timestamp)) {
+          console.log("[v0] Blockchain proof found for code:", codeId)
+          return {
+            anchorHash: event.anchorHash,
+            anchorDate: block.date,
+            status: event.status,
+            anchored: true,
+            blockHash: block.hash,
+            blockIndex: block.index,
+            blockTimestamp: block.timestamp,
+            merkleRoot: block.merkleRoot,
+          }
         }
       }
     }
-  }
 
-  const pendingDates = Object.keys(snapshot.pendingAnchors).sort().reverse()
+    const pendingDates = Object.keys(snapshot.pendingAnchors).sort().reverse()
 
-  for (const date of pendingDates) {
-    const events = snapshot.pendingAnchors[date]
-    for (const event of events) {
-      if (event.codeId === codeId && (!timestamp || event.timestamp === timestamp)) {
-        return {
-          anchorHash: event.anchorHash,
-          anchorDate: date,
-          status: event.status,
-          anchored: false,
-          pendingCount: events.length,
+    for (const date of pendingDates) {
+      const events = snapshot.pendingAnchors[date]
+      for (const event of events) {
+        if (event.codeId === codeId && (!timestamp || event.timestamp === timestamp)) {
+          console.log("[v0] Blockchain proof found in pending anchors for code:", codeId)
+          return {
+            anchorHash: event.anchorHash,
+            anchorDate: date,
+            status: event.status,
+            anchored: false,
+            pendingCount: events.length,
+          }
         }
       }
     }
-  }
 
-  return null
+    console.log("[v0] No blockchain proof found for code:", codeId)
+    return null
+  } catch (error) {
+    console.error("[v0] Error getting blockchain proof:", error)
+    throw error
+  }
 }
 
 export interface BlockchainStatusSummary {
@@ -257,22 +268,31 @@ export interface BlockchainStatusSummary {
 }
 
 export async function getBlockchainStatus(): Promise<BlockchainStatusSummary> {
-  const today = new Date().toISOString().slice(0, 10)
-  const state = await flushAnchorsUpTo(today)
+  try {
+    console.log("[v0] Getting blockchain status...")
+    const today = new Date().toISOString().slice(0, 10)
+    const state = await flushAnchorsUpTo(today)
 
-  const nonGenesisBlocks = state.chain.filter((block) => block.index > 0)
-  const lastBlock = nonGenesisBlocks[nonGenesisBlocks.length - 1]
-  const totalActivations = nonGenesisBlocks.reduce((acc, block) => acc + block.events.length, 0)
-  const lastAnchorDate = lastBlock ? lastBlock.date : "Belum ada anchor"
-  const latestMerkleRoot = lastBlock ? lastBlock.merkleRoot : "-"
-  const pendingToday = state.pendingAnchors[today]?.length ?? 0
+    const nonGenesisBlocks = state.chain.filter((block) => block.index > 0)
+    const lastBlock = nonGenesisBlocks[nonGenesisBlocks.length - 1]
+    const totalActivations = nonGenesisBlocks.reduce((acc, block) => acc + block.events.length, 0)
+    const lastAnchorDate = lastBlock ? lastBlock.date : "Belum ada anchor"
+    const latestMerkleRoot = lastBlock ? lastBlock.merkleRoot : "-"
+    const pendingToday = state.pendingAnchors[today]?.length ?? 0
 
-  return {
-    lastAnchorDate,
-    totalActivations,
-    latestMerkleRoot,
-    network: "Ethereum Sepolia Testnet",
-    contractAddress: "0x51E2620A7ab1411f4f626fb68d98E68f58c31167",
-    pendingToday,
+    const status = {
+      lastAnchorDate,
+      totalActivations,
+      latestMerkleRoot,
+      network: "Ethereum Sepolia Testnet",
+      contractAddress: "0x51E2620A7ab1411f4f626fb68d98E68f58c31167",
+      pendingToday,
+    }
+
+    console.log("[v0] Blockchain status retrieved:", status)
+    return status
+  } catch (error) {
+    console.error("[v0] Error getting blockchain status:", error)
+    throw error
   }
 }
