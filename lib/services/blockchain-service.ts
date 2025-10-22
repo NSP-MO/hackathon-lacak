@@ -112,12 +112,12 @@ function ensureGenesis(state: BlockchainState) {
   state.chain.push(mineBlock(baseBlock))
 }
 
-function anchorPendingBefore(state: BlockchainState, cutoffDate: string) {
+function anchorPendingUpTo(state: BlockchainState, cutoffDate: string) {
   ensureGenesis(state)
   const dates = Object.keys(state.pendingAnchors).sort()
 
   for (const date of dates) {
-    if (date >= cutoffDate) {
+    if (date > cutoffDate) {
       continue
     }
 
@@ -164,7 +164,7 @@ export async function recordVerificationEvent(event: RecordEventInput) {
 
     state.pendingAnchors[eventDate].push(event)
 
-    anchorPendingBefore(state, eventDate)
+    anchorPendingUpTo(state, eventDate)
 
     return state
   })
@@ -172,7 +172,7 @@ export async function recordVerificationEvent(event: RecordEventInput) {
 
 async function flushAnchorsUpTo(date: string): Promise<BlockchainState> {
   return mutateStore(STORE_FILE, defaultState, (state) => {
-    anchorPendingBefore(state, date)
+    anchorPendingUpTo(state, date)
     return state
   })
 }
@@ -271,8 +271,8 @@ export async function getBlockchainStatus(): Promise<BlockchainStatusSummary> {
     lastAnchorDate,
     totalActivations,
     latestMerkleRoot,
-    network: "LACAK Private Ledger (Proof-of-Authority)",
-    contractAddress: "0x4C4143414B416E63686F724D656D6F0000000000",
+    network: "Ethereum Sepolia Testnet",
+    contractAddress: "0x51E2620A7ab1411f4f626fb68d98E68f58c31167",
     pendingToday,
   }
 }

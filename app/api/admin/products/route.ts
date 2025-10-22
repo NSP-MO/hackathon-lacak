@@ -1,13 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import {
-  createProductBatch,
-  listProductSummaries,
-} from "@/lib/services/product-service"
+import { createProductBatch, listProductSummaries } from "@/lib/services/product-service"
 
 export async function GET() {
-  const products = await listProductSummaries()
-  return NextResponse.json(products)
+  try {
+    const products = await listProductSummaries()
+    return NextResponse.json(products)
+  } catch (error) {
+    console.error("[v0] Error fetching products:", error)
+    return NextResponse.json(
+      { message: "Gagal memuat daftar produk", error: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 },
+    )
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -25,10 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!Number.isInteger(quantity) || quantity <= 0 || quantity > 10000) {
-      return NextResponse.json(
-        { message: "Jumlah kode harus berupa bilangan bulat antara 1-10000" },
-        { status: 400 },
-      )
+      return NextResponse.json({ message: "Jumlah kode harus berupa bilangan bulat antara 1-10000" }, { status: 400 })
     }
 
     const batch = await createProductBatch({ productName, distributor, quantity })
@@ -48,7 +50,10 @@ export async function POST(request: NextRequest) {
       })),
     })
   } catch (error) {
-    console.error("Error creating product:", error)
-    return NextResponse.json({ message: "Gagal membuat batch produk" }, { status: 500 })
+    console.error("[v0] Error creating product:", error)
+    return NextResponse.json(
+      { message: "Gagal membuat batch produk", error: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 },
+    )
   }
 }
