@@ -1,21 +1,15 @@
 import { randomUUID } from "crypto"
 
 import { appendAuditLog } from "@/lib/services/audit-service"
+import { applyVerificationUpdate, findCodeByVerificationHash } from "@/lib/services/product-service"
 import {
-  applyVerificationUpdate,
-  findCodeByVerificationHash,
-} from "@/lib/services/product-service"
-import {
-  BlockchainProof,
+  type BlockchainProof,
   recordVerificationEvent,
   getBlockchainProofForCode,
 } from "@/lib/services/blockchain-service"
 import { computeVerificationHash, hashIp } from "@/lib/utils/hash"
 
-export type VerificationOutcome =
-  | "TERVERIFIKASI"
-  | "PERNAH_TERVERIFIKASI"
-  | "TIDAK_TERVERIFIKASI"
+export type VerificationOutcome = "TERVERIFIKASI" | "PERNAH_TERVERIFIKASI" | "TIDAK_TERVERIFIKASI"
 
 export interface VerificationResult {
   status: VerificationOutcome
@@ -32,10 +26,7 @@ export interface VerificationResult {
   blockchainProof?: BlockchainProof | null
 }
 
-export async function verifyProductCode(
-  code: string,
-  ipAddress?: string | null,
-): Promise<VerificationResult> {
+export async function verifyProductCode(code: string, ipAddress?: string | null): Promise<VerificationResult> {
   const normalized = code.trim().toUpperCase()
 
   if (!/^[0-9A-F]{16}$/.test(normalized)) {
@@ -88,17 +79,23 @@ export async function verifyProductCode(
     codeId: updateResult.code.id,
   })
 
-  await recordVerificationEvent({
-    productId: updateResult.batch.id,
-    productName: updateResult.batch.productName,
-    distributor: updateResult.batch.distributor,
-    codeId: updateResult.code.id,
-    anchorHash: updateResult.code.blockchainAnchorHash,
-    status: updateResult.status,
-    timestamp,
-  })
+  let blockchainProof: BlockchainProof | null = null
+  try {
+    await recordVerificationEvent({
+      productId: updateResult.batch.id,
+      productName: updateResult.batch.productName,
+      distributor: updateResult.batch.distributor,
+      codeId: updateResult.code.id,
+      anchorHash: updateResult.code.blockchainAnchorHash,
+      status: updateResult.status,
+      timestamp,
+    })
 
-  const proof = await getBlockchainProofForCode(updateResult.code.id, timestamp)
+    blockchainProof = await getBlockchainProofForCode(updateResult.code.id, timestamp)
+  } catch (error) {
+    console.error("[v0] Blockchain operation failed:", error)
+    // Continue with verification even if blockchain fails
+  }
 
   const message =
     updateResult.status === "TERVERIFIKASI"
@@ -120,6 +117,6 @@ export async function verifyProductCode(
       timestamp: entry.timestamp,
       status: entry.status,
     })),
-    blockchainProof: proof,
+    blockchainProof,
   }
 }
