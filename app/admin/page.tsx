@@ -391,7 +391,7 @@ export default function AdminPage() {
               </Card>
             )}
 
-            {!blockchainData && !loading && !blockchainError && (
+            {!blockchainData && !loading && (
               <Card className="bg-slate-900 border-slate-700 p-6 text-center text-slate-300">
                 Tidak ada data blockchain yang tersedia.
               </Card>
