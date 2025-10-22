@@ -1,21 +1,15 @@
 import { randomUUID } from "crypto"
 
 import { appendAuditLog } from "@/lib/services/audit-service"
+import { applyVerificationUpdate, findCodeByVerificationHash } from "@/lib/services/product-service"
 import {
-  applyVerificationUpdate,
-  findCodeByVerificationHash,
-} from "@/lib/services/product-service"
-import {
-  BlockchainProof,
+  type BlockchainProof,
   recordVerificationEvent,
   getBlockchainProofForCode,
 } from "@/lib/services/blockchain-service"
 import { computeVerificationHash, hashIp } from "@/lib/utils/hash"
 
-export type VerificationOutcome =
-  | "TERVERIFIKASI"
-  | "PERNAH_TERVERIFIKASI"
-  | "TIDAK_TERVERIFIKASI"
+export type VerificationOutcome = "TERVERIFIKASI" | "PERNAH_TERVERIFIKASI" | "TIDAK_TERVERIFIKASI"
 
 export interface VerificationResult {
   status: VerificationOutcome
@@ -32,10 +26,7 @@ export interface VerificationResult {
   blockchainProof?: BlockchainProof | null
 }
 
-export async function verifyProductCode(
-  code: string,
-  ipAddress?: string | null,
-): Promise<VerificationResult> {
+export async function verifyProductCode(code: string, ipAddress?: string | null): Promise<VerificationResult> {
   const normalized = code.trim().toUpperCase()
 
   if (!/^[0-9A-F]{16}$/.test(normalized)) {
