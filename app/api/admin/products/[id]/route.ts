@@ -5,9 +5,13 @@ import {
   getProductBatchById,
 } from "@/lib/services/product-service"
 
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  _: NextRequest,
+  context: { params: { id: string } | Promise<{ id: string }> },
+) {
   try {
-    const batch = await getProductBatchById(params.id)
+    const { id } = await context.params
+    const batch = await getProductBatchById(id)
 
     if (!batch) {
       return NextResponse.json({ message: "Produk tidak ditemukan" }, { status: 404 })
@@ -43,9 +47,13 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  _: NextRequest,
+  context: { params: { id: string } | Promise<{ id: string }> },
+) {
   try {
-    const deleted = await deleteProductBatch(params.id)
+    const { id } = await context.params
+    const deleted = await deleteProductBatch(id)
 
     if (!deleted) {
       return NextResponse.json({ message: "Produk tidak ditemukan" }, { status: 404 })

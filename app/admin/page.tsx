@@ -22,13 +22,32 @@ interface ProductSummary {
   createdAt: string
 }
 
+interface BlockchainStatusSummary {
+  lastAnchorDate: string
+  totalActivations: number
+  latestMerkleRoot: string
+  network: string
+  contractAddress: string
+  pendingToday: number
+}
+
+const defaultBlockchainStatus: BlockchainStatusSummary = {
+  lastAnchorDate: "Belum ada anchor",
+  totalActivations: 0,
+  latestMerkleRoot: "-",
+  network: "Ethereum Sepolia Testnet",
+  contractAddress: "0x51E2620A7ab1411f4f626fb68d98E68f58c31167",
+  pendingToday: 0,
+}
+
 export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>("products")
   const [showForm, setShowForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [products, setProducts] = useState<ProductSummary[]>([])
   const [auditLogs, setAuditLogs] = useState<any[]>([])
-  const [blockchainData, setBlockchainData] = useState<any>(null)
+  const [blockchainData, setBlockchainData] = useState<BlockchainStatusSummary | null>(null)
+  const [blockchainError, setBlockchainError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
   const [selectedProductDetail, setSelectedProductDetail] = useState<ProductDetail | null>(null)
@@ -118,8 +137,10 @@ export default function AdminPage() {
 
         setAuditLogs(Array.isArray(payload) ? payload : [])
       } else if (tab === "blockchain") {
+        setBlockchainError(null)
+
         const response = await fetch("/api/admin/blockchain-status")
-        let payload: any = null
+        let payload: Partial<BlockchainStatusSummary> | null = null
         try {
           payload = await response.json()
         } catch {
@@ -130,7 +151,10 @@ export default function AdminPage() {
           throw new Error(payload?.message ?? "Gagal memuat status blockchain")
         }
 
-        setBlockchainData(payload)
+        setBlockchainData({
+          ...defaultBlockchainStatus,
+          ...(payload ?? {}),
+        })
       }
     } catch (error) {
       console.error("Error loading data:", error)
@@ -141,6 +165,9 @@ export default function AdminPage() {
         setAuditLogs([])
       } else if (tab === "blockchain") {
         setBlockchainData(null)
+        setBlockchainError(
+          error instanceof Error ? error.message : "Gagal memuat status blockchain",
+        )
       }
     } finally {
       setLoading(false)
@@ -358,7 +385,13 @@ export default function AdminPage() {
               </>
             )}
 
-            {!blockchainData && !loading && (
+            {blockchainError && (
+              <Card className="bg-red-500/10 border-red-500/40 p-4 text-sm text-red-200">
+                {blockchainError}
+              </Card>
+            )}
+
+            {!blockchainData && !loading && !blockchainError && (
               <Card className="bg-slate-900 border-slate-700 p-6 text-center text-slate-300">
                 Tidak ada data blockchain yang tersedia.
               </Card>

@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto"
 
+import { DEFAULT_VERIFICATION_SECRET, VERIFICATION_SECRET } from "@/lib/config"
 import { appendAuditLog } from "@/lib/services/audit-service"
 import { applyVerificationUpdate, findCodeByVerificationHash } from "@/lib/services/product-service"
 import {
@@ -33,11 +34,26 @@ export async function verifyProductCode(code: string, ipAddress?: string | null)
     throw new Error("Kode harus berformat 16 digit heksadesimal (0-9, A-F)")
   }
 
-  const verificationHash = computeVerificationHash(normalized)
+  const secretCandidates = [VERIFICATION_SECRET]
+  if (!secretCandidates.includes(DEFAULT_VERIFICATION_SECRET)) {
+    secretCandidates.push(DEFAULT_VERIFICATION_SECRET)
+  }
+
   const ipHash = hashIp(ipAddress)
   const timestamp = new Date().toISOString()
 
-  const lookup = await findCodeByVerificationHash(verificationHash)
+  let lookup: Awaited<ReturnType<typeof findCodeByVerificationHash>> = null
+  let matchedSecret = VERIFICATION_SECRET
+
+  for (const candidate of secretCandidates) {
+    const candidateHash = computeVerificationHash(normalized, candidate)
+    const found = await findCodeByVerificationHash(candidateHash)
+    if (found) {
+      lookup = found
+      matchedSecret = candidate
+      break
+    }
+  }
 
   if (!lookup) {
     try {
@@ -66,6 +82,12 @@ export async function verifyProductCode(code: string, ipAddress?: string | null)
     timestamp,
     ipHash,
   })
+
+  if (matchedSecret !== VERIFICATION_SECRET) {
+    console.warn(
+      "Verification used legacy secret fallback; consider rotating existing codes to the active secret.",
+    )
+  }
 
   if (!updateResult) {
     throw new Error("Gagal memperbarui status verifikasi produk")
