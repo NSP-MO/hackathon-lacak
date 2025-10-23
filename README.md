@@ -73,7 +73,7 @@ Kode dalam repositori ini mencakup fitur-fitur MVP berikut:
 
 ## Alur Teknis
 
-```mermaid
+\`\`\`mermaid
 sequenceDiagram
     participant K as Konsumen
     participant F as Frontend (Next.js)
@@ -104,7 +104,7 @@ sequenceDiagram
         B->>B: 9. Buat Merkle Tree
         B->>BC: 10. Simpan Merkle Root
     end
-````
+\`\`\``
 
 ## Tech Stack
 
@@ -117,7 +117,7 @@ sequenceDiagram
 
 ## Struktur Proyek
 
-```
+\`\`\`
 /
 ├── app/
 │   ├── admin/                # Halaman Dashboard Admin (Protected)
@@ -141,28 +141,28 @@ sequenceDiagram
 │       ├── hash.ts           # Fungsi helper SHA-256
 │       └── file-storage.ts   # Helper untuk baca/tulis DB JSON
 └── public/
-```
+\`\`\`
 
 ## Menjalankan Secara Lokal
 
 1.  **Clone repositori:**
 
-    ```bash
+    \`\`\`bash
     git clone [https://github.com/nghifaria/hackathon-lacak.git](https://github.com/nghifaria/hackathon-lacak.git)
     cd hackathon-lacak
-    ```
+    \`\`\`
 
 2.  **Install dependencies (menggunakan `pnpm`):**
 
-    ```bash
+    \`\`\`bash
     pnpm install
-    ```
+    \`\`\`
 
 3.  **Jalankan development server:**
 
-    ```bash
+    \`\`\`bash
     pnpm dev
-    ```
+    \`\`\`
 
 4.  Buka `http://localhost:3000` di browser Anda.
 
@@ -171,3 +171,6 @@ sequenceDiagram
 
 
 <!-- end list -->
+
+\`\`\`
+\`\`\`
