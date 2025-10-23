@@ -1,7 +1,17 @@
 import crypto from "crypto"
 
 import { BLOCKCHAIN_DIFFICULTY } from "@/lib/config"
-import { mutateStore } from "@/lib/utils/in-memory-store"
+import {
+  getLatestBlock,
+  getAllBlocks,
+  insertBlock,
+  getPendingAnchors,
+  getAllPendingAnchors,
+  upsertPendingAnchors,
+  deletePendingAnchors,
+  findEventByCodeId,
+  getTotalActivations,
+} from "@/lib/db/blockchain-repository"
 
 export type BlockchainVerificationStatus = "TERVERIFIKASI" | "PERNAH_TERVERIFIKASI"
 
@@ -94,8 +104,10 @@ function mineBlock(base: Omit<BlockchainBlock, "hash" | "nonce">): BlockchainBlo
   return { ...base, nonce, hash }
 }
 
-function ensureGenesis(state: BlockchainState) {
-  if (state.chain.length > 0) {
+async function ensureGenesis() {
+  const latestBlock = await getLatestBlock()
+
+  if (latestBlock) {
     return
   }
 
@@ -110,25 +122,32 @@ function ensureGenesis(state: BlockchainState) {
     events: [],
   }
 
-  state.chain.push(mineBlock(baseBlock))
+  const genesisBlock = mineBlock(baseBlock)
+  await insertBlock(genesisBlock)
 }
 
-function anchorPendingUpTo(state: BlockchainState, cutoffDate: string) {
-  ensureGenesis(state)
-  const dates = Object.keys(state.pendingAnchors).sort()
+async function anchorPendingUpTo(cutoffDate: string) {
+  await ensureGenesis()
+
+  const pendingAnchors = await getAllPendingAnchors()
+  const dates = Object.keys(pendingAnchors).sort()
 
   for (const date of dates) {
     if (date > cutoffDate) {
       continue
     }
 
-    const events = state.pendingAnchors[date]
+    const events = pendingAnchors[date]
     if (!events || events.length === 0) {
-      delete state.pendingAnchors[date]
+      await deletePendingAnchors(date)
       continue
     }
 
-    const previous = state.chain[state.chain.length - 1]
+    const previous = await getLatestBlock()
+    if (!previous) {
+      throw new Error("No genesis block found")
+    }
+
     const blockBase: Omit<BlockchainBlock, "hash" | "nonce"> = {
       index: previous.index + 1,
       previousHash: previous.hash,
@@ -139,8 +158,8 @@ function anchorPendingUpTo(state: BlockchainState, cutoffDate: string) {
     }
 
     const block = mineBlock(blockBase)
-    state.chain.push(block)
-    delete state.pendingAnchors[date]
+    await insertBlock(block)
+    await deletePendingAnchors(date)
   }
 }
 
@@ -157,20 +176,16 @@ export interface RecordEventInput {
 export async function recordVerificationEvent(event: RecordEventInput) {
   try {
     console.log("[v0] Recording verification event:", event.codeId)
-    await mutateStore(STORE_FILE, defaultState, (state) => {
-      ensureGenesis(state)
 
-      const eventDate = event.timestamp.slice(0, 10)
-      if (!state.pendingAnchors[eventDate]) {
-        state.pendingAnchors[eventDate] = []
-      }
+    await ensureGenesis()
 
-      state.pendingAnchors[eventDate].push(event)
+    const eventDate = event.timestamp.slice(0, 10)
+    const existingEvents = await getPendingAnchors(eventDate)
+    existingEvents.push(event)
 
-      anchorPendingUpTo(state, eventDate)
+    await upsertPendingAnchors(eventDate, existingEvents)
+    await anchorPendingUpTo(eventDate)
 
-      return state
-    })
     console.log("[v0] Verification event recorded successfully")
   } catch (error) {
     console.error("[v0] Error recording verification event:", error)
@@ -178,20 +193,8 @@ export async function recordVerificationEvent(event: RecordEventInput) {
   }
 }
 
-async function flushAnchorsUpTo(date: string): Promise<BlockchainState> {
-  return mutateStore(STORE_FILE, defaultState, (state) => {
-    anchorPendingUpTo(state, date)
-    return state
-  })
-}
-
-function cloneState(state: BlockchainState): BlockchainState {
-  return {
-    chain: state.chain.map((block) => ({ ...block, events: block.events.map((event) => ({ ...event })) })),
-    pendingAnchors: Object.fromEntries(
-      Object.entries(state.pendingAnchors).map(([key, value]) => [key, value.map((event) => ({ ...event }))]),
-    ),
-  }
+async function flushAnchorsUpTo(date: string): Promise<void> {
+  await anchorPendingUpTo(date)
 }
 
 export interface BlockchainProof {
@@ -210,32 +213,33 @@ export async function getBlockchainProofForCode(codeId: string, timestamp?: stri
   try {
     console.log("[v0] Getting blockchain proof for code:", codeId)
     const today = new Date().toISOString().slice(0, 10)
-    const state = await flushAnchorsUpTo(today)
-    const snapshot = cloneState(state)
+    await flushAnchorsUpTo(today)
 
-    for (let i = snapshot.chain.length - 1; i >= 0; i--) {
-      const block = snapshot.chain[i]
-      for (const event of block.events) {
-        if (event.codeId === codeId && (!timestamp || event.timestamp === timestamp)) {
-          console.log("[v0] Blockchain proof found for code:", codeId)
-          return {
-            anchorHash: event.anchorHash,
-            anchorDate: block.date,
-            status: event.status,
-            anchored: true,
-            blockHash: block.hash,
-            blockIndex: block.index,
-            blockTimestamp: block.timestamp,
-            merkleRoot: block.merkleRoot,
-          }
+    const result = await findEventByCodeId(codeId)
+
+    if (result) {
+      const { event, block } = result
+      if (!timestamp || event.timestamp === timestamp) {
+        console.log("[v0] Blockchain proof found for code:", codeId)
+        return {
+          anchorHash: event.anchorHash,
+          anchorDate: block.date,
+          status: event.status,
+          anchored: true,
+          blockHash: block.hash,
+          blockIndex: block.index,
+          blockTimestamp: block.timestamp,
+          merkleRoot: block.merkleRoot,
         }
       }
     }
 
-    const pendingDates = Object.keys(snapshot.pendingAnchors).sort().reverse()
+    // Check pending anchors
+    const pendingAnchors = await getAllPendingAnchors()
+    const pendingDates = Object.keys(pendingAnchors).sort().reverse()
 
     for (const date of pendingDates) {
-      const events = snapshot.pendingAnchors[date]
+      const events = pendingAnchors[date]
       for (const event of events) {
         if (event.codeId === codeId && (!timestamp || event.timestamp === timestamp)) {
           console.log("[v0] Blockchain proof found in pending anchors for code:", codeId)
@@ -271,14 +275,16 @@ export async function getBlockchainStatus(): Promise<BlockchainStatusSummary> {
   try {
     console.log("[v0] Getting blockchain status...")
     const today = new Date().toISOString().slice(0, 10)
-    const state = await flushAnchorsUpTo(today)
+    await flushAnchorsUpTo(today)
 
-    const nonGenesisBlocks = state.chain.filter((block) => block.index > 0)
+    const allBlocks = await getAllBlocks()
+    const nonGenesisBlocks = allBlocks.filter((block) => block.index > 0)
     const lastBlock = nonGenesisBlocks[nonGenesisBlocks.length - 1]
-    const totalActivations = nonGenesisBlocks.reduce((acc, block) => acc + block.events.length, 0)
+    const totalActivations = await getTotalActivations()
     const lastAnchorDate = lastBlock ? lastBlock.date : "Belum ada anchor"
     const latestMerkleRoot = lastBlock ? lastBlock.merkleRoot : "-"
-    const pendingToday = state.pendingAnchors[today]?.length ?? 0
+    const pendingEvents = await getPendingAnchors(today)
+    const pendingToday = pendingEvents.length
 
     const status = {
       lastAnchorDate,
