@@ -117,7 +117,7 @@ sequenceDiagram
 
 ## Struktur Proyek
 
-\`\`\`
+```
 /
 ├── app/
 │   ├── admin/                # Halaman Dashboard Admin (Protected)
@@ -141,7 +141,7 @@ sequenceDiagram
 │       ├── hash.ts           # Fungsi helper SHA-256
 │       └── file-storage.ts   # Helper untuk baca/tulis DB JSON
 └── public/
-\`\`\`
+```
 
 ## Menjalankan Secara Lokal
 
